@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kid Events Finder — Chambana</title>
+<style>
+  :root {
+    --cream: #FBF6EC;
+    --ink: #23342E;
+    --teal: #2C6E63;
+    --coral: #E2703A;
+    --line: #D9D0BC;
+    --card: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    padding: 32px 16px 64px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .sub {
+    color: #5A6B63;
+    margin: 0 0 28px;
+    font-size: 0.98rem;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+  }
+
+  label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--teal);
+    margin-bottom: 6px;
+  }
+
+  .row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  input[type="date"] {
+    font-size: 1rem;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--cream);
+    color: var(--ink);
+    min-width: 190px;
+  }
+  input[type="date"]:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+  button {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 11px 22px;
+    border-radius: 8px;
+    border: none;
+    background: var(--coral);
+    color: white;
+    cursor: pointer;
+  }
+  button:hover { background: #cb5f2c; }
+  button:disabled { background: #cbb9ac; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .age-badge {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 6px 12px;
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.9rem;
+  }
+  .age-badge b { color: var(--teal); }
+
+  .status {
+    font-size: 0.92rem;
+    color: #5A6B63;
+    margin: 10px 0 0;
+  }
+  .status.error { color: #B4432D; }
+
+  .day-heading {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--teal);
+    margin: 28px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .event {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .event .time {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--coral);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .event .title {
+    font-size: 1.02rem;
+    font-weight: 600;
+    margin: 4px 0 4px;
+  }
+  .event .title a { color: var(--ink); text-decoration: none; }
+  .event .title a:hover { text-decoration: underline; }
+  .event .loc {
+    font-size: 0.88rem;
+    color: #5A6B63;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #5A6B63;
+  }
+
+  footer {
+    margin-top: 36px;
+    font-size: 0.8rem;
+    color: #8A9691;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kid Events Finder</h1>
+  <p class="sub">Pulls the current Champaign–Urbana family event calendar and filters it to your child's age.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div>
+        <label for="dob">Child's date of birth</label>
+        <input type="date" id="dob">
+      </div>
+      <button id="searchBtn">Search events</button>
+    </div>
+    <div id="ageBadge"></div>
+    <div id="status" class="status"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <footer>
+    Source: chambanamoms.com/event-calendar. Age matching is keyword-based on event titles and won't be perfect — check listings for details.
+  </footer>
+</div>
+
+<script>
+const CALENDAR_URL = "https://www.chambanamoms.com/event-calendar/";
+
+// Public CORS proxies so this can run as a static file without a backend.
+// Tried in order; if one is down/rate-limited, the next is used automatically.
+// Add/remove/reorder entries here if you find one works better for you.
+const PROXIES = [
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, // returns JSON {contents: "..."}
+];
+
+async function fetchViaProxies(targetUrl) {
+  let lastError = null;
+  for (const buildUrl of PROXIES) {
+    const proxyUrl = buildUrl(targetUrl);
+    try {
+      const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      // The allorigins "get" endpoint wraps HTML inside JSON.
+      if (proxyUrl.includes("allorigins.win/get")) {
+        const data = await resp.json();
+        if (!data.contents) throw new Error("Empty response");
+        return data.contents;
+      }
+      const text = await resp.text();
+      if (!text || text.length < 200) throw new Error("Response too short/empty");
+      return text;
+    } catch (err) {
+      lastError = err;
+      continue; // try next proxy
+    }
+  }
+  throw lastError || new Error("All proxies failed");
+}
+
+const AGE_KEYWORD_MAP = [
+  { lo: 0,  hi: 1.5, kws: ["infant", "baby", "under 2"] },
+  { lo: 1,  hi: 3,   kws: ["toddler", "tiny tots", "baby storytime"] },
+  { lo: 3,  hi: 5,   kws: ["preschool", "pre-k", "kindergarten readiness"] },
+  { lo: 5,  hi: 8,   kws: ["k-3", "grades k", "early elementary", "school age"] },
+  { lo: 8,  hi: 11,  kws: ["elementary", "3-5th grad", "grades 3-5", "school age"] },
+  { lo: 10, hi: 13,  kws: ["tween"] },
+  { lo: 12, hi: 18,  kws: ["teen"] },
+];
+const ALWAYS_EXCLUDE = ["18+", "adult event"];
+const ALWAYS_INCLUDE = ["family", "all ages", "farmers market", "farmer's market"];
+
+function calcAge(dobStr) {
+  const dob = new Date(dobStr + "T00:00:00");
+  const now = new Date();
+  let years = now.getFullYear() - dob.getFullYear();
+  const hadBirthdayThisYear =
+    (now.getMonth() > dob.getMonth()) ||
+    (now.getMonth() === dob.getMonth() && now.getDate() >= dob.getDate());
+  if (!hadBirthdayThisYear) years -= 1;
+
+  const nextBday = new Date(dob);
+  nextBday.setFullYear(hadBirthdayThisYear ? now.getFullYear() + 1 : now.getFullYear());
+  const lastBday = new Date(nextBday);
+  lastBday.setFullYear(nextBday.getFullYear() - 1);
+  const frac = (now - lastBday) / (nextBday - lastBday);
+
+  return years + frac;
+}
+
+function relevantKeywords(age) {
+  const set = new Set();
+  for (const { lo, hi, kws } of AGE_KEYWORD_MAP) {
+    if (age >= lo && age <= hi) kws.forEach(k => set.add(k));
+  }
+  return set;
+}
+
+function parseEvents(doc) {
+  const events = [];
+  let currentDay = null;
+  const nodes = doc.querySelectorAll("h2, h3, table");
+
+  nodes.forEach(el => {
+    if (el.tagName === "H2" || el.tagName === "H3") {
+      const text = el.textContent.trim();
+      if (/\b(19|20)\d{2}\b/.test(text)) currentDay = text;
+      return;
+    }
+    const rows = el.querySelectorAll("tr");
+    rows.forEach(row => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length < 2) return;
+      const datetimeStr = cells[0].textContent.replace(/\s+/g, " ").trim();
+      const eventCell = cells[1];
+      const linkTag = eventCell.querySelector("a");
+      const title = linkTag ? linkTag.textContent.trim() : eventCell.textContent.replace(/\s+/g, " ").trim();
+      const link = linkTag ? linkTag.getAttribute("href") : null;
+      const locTag = eventCell.querySelector("i, em");
+      let location = locTag ? locTag.textContent.replace(/\s+/g, " ").trim() : "";
+      location = location.replace(/^at\s+/i, "");
+
+      events.push({ day: currentDay, datetimeStr, title, link, location });
+    });
+  });
+
+  return events;
+}
+
+function filterEvents(events, age) {
+  const keywords = relevantKeywords(age);
+  return events.filter(ev => {
+    const titleLower = ev.title.toLowerCase();
+    const dtLower = ev.datetimeStr.toLowerCase();
+
+    if (ALWAYS_EXCLUDE.some(bad => titleLower.includes(bad) || dtLower.includes(bad))) return false;
+    if (ALWAYS_INCLUDE.some(good => titleLower.includes(good))) return true;
+    return [...keywords].some(kw => titleLower.includes(kw));
+  });
+}
+
+function renderResults(matched) {
+  const resultsEl = document.getElementById("results");
+  resultsEl.innerHTML = "";
+
+  if (matched.length === 0) {
+    resultsEl.innerHTML = `<div class="empty">No matching events found. Try again later, or widen the age keywords in the script.</div>`;
+    return;
+  }
+
+  let lastDay = null;
+  matched.forEach(ev => {
+    if (ev.day !== lastDay) {
+      const h = document.createElement("div");
+      h.className = "day-heading";
+      h.textContent = ev.day || "Date unknown";
+      resultsEl.appendChild(h);
+      lastDay = ev.day;
+    }
+    const card = document.createElement("div");
+    card.className = "event";
+    card.innerHTML = `
+      <div class="time">${ev.datetimeStr}</div>
+      <div class="title">${ev.link ? `<a href="${ev.link}" target="_blank" rel="noopener">${ev.title}</a>` : ev.title}</div>
+      ${ev.location ? `<div class="loc">${ev.location}</div>` : ""}
+    `;
+    resultsEl.appendChild(card);
+  });
+}
+
+async function runSearch() {
+  const dob = document.getElementById("dob").value;
+  const statusEl = document.getElementById("status");
+  const ageBadge = document.getElementById("ageBadge");
+  const btn = document.getElementById("searchBtn");
+  const resultsEl = document.getElementById("results");
+
+  if (!dob) {
+    statusEl.textContent = "Enter a date of birth first.";
+    statusEl.className = "status error";
+    return;
+  }
+
+  const age = calcAge(dob);
+  ageBadge.innerHTML = `<span class="age-badge">Age: <b>${age.toFixed(1)} years</b></span>`;
+
+  btn.disabled = true;
+  statusEl.className = "status";
+  statusEl.textContent = "Fetching the calendar…";
+  resultsEl.innerHTML = "";
+
+  try {
+    const html = await fetchViaProxies(CALENDAR_URL);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    const events = parseEvents(doc);
+    if (events.length === 0) {
+      statusEl.textContent = "Fetched the page but couldn't find any events — the site's layout may have changed.";
+      statusEl.className = "status error";
+      btn.disabled = false;
+      return;
+    }
+
+    const matched = filterEvents(events, age);
+    statusEl.textContent = `Found ${events.length} events total, ${matched.length} that match this age.`;
+    renderResults(matched);
+  } catch (err) {
+    statusEl.textContent = "Couldn't fetch the calendar after trying several proxies (" + err.message + "). Try again in a bit, or check your internet connection.";
+    statusEl.className = "status error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("searchBtn").addEventListener("click", runSearch);
+document.getElementById("dob").addEventListener("keydown", e => {
+  if (e.key === "Enter") runSearch();
+});
+</script>
+</body>
+</html>
