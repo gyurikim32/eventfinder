@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amygdala–PFC Connection Strength</title>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --panel: #101827;
+    --panel-line: #1f2b42;
+    --text: #e8edf7;
+    --muted: #7c8aa8;
+    --weak: #e2542d;
+    --weak-glow: #ff7a4d;
+    --base: #c99a3e;
+    --strong: #35a893;
+    --strong-glow: #57d6bd;
+    --track: #1a2438;
+    --display-font: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    --body-font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --mono-font: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(ellipse at 50% -10%, #12203a 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: var(--body-font);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+
+  .stage {
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono-font);
+    font-size: 17px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 6px 2px;
+  }
+
+  h1 {
+    font-family: var(--display-font);
+    font-size: clamp(33px, 6vw, 45px);
+    font-weight: 600;
+    margin: 0 0 26px 2px;
+    letter-spacing: -0.01em;
+  }
+
+  .panel {
+    background: linear-gradient(180deg, var(--panel), #0c1420);
+    border: 1px solid var(--panel-line);
+    border-radius: 18px;
+    padding: 36px 30px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--panel-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--panel-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  /* --- Diagram --- */
+  svg#diagram {
+    width: 100%;
+    height: auto;
+    display: block;
+    position: relative;
+    z-index: 1;
+  }
+
+  .region-label {
+    font-family: var(--mono-font);
+    font-size: 33px;
+    font-weight: 400;
+    fill: var(--text);
+    letter-spacing: 0.01em;
+  }
+
+  .pulse-dot {
+    filter: drop-shadow(0 0 6px currentColor);
+  }
+
+  .pedal-label {
+    font-family: var(--mono-font);
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .pedal-floor {
+    stroke: var(--panel-line);
+    stroke-width: 2;
+  }
+
+  .pedal-pad {
+    stroke-width: 1.5;
+  }
+
+  /* --- Slider --- */
+  .control {
+    margin-top: 46px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .track-wrap {
+    position: relative;
+    height: 46px;
+    margin: 6px 4px 0;
+  }
+
+  .track {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 8px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--weak) 0%, var(--base) 50%, var(--strong) 100%);
+    opacity: 0.35;
+  }
+
+  .track-fill-mark {
+    position: absolute;
+    top: 50%;
+    width: 2px;
+    height: 16px;
+    transform: translate(-50%, -50%);
+    background: var(--panel-line);
+  }
+
+  .handle {
+    position: absolute;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--text);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px currentColor, 0 4px 14px rgba(0,0,0,0.5);
+    cursor: grab;
+    touch-action: none;
+    transition: background 0.15s ease;
+  }
+
+  .handle:active { cursor: grabbing; }
+
+  .track-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono-font);
+    font-size: 15.2px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 2px 2px 0;
+  }
+
+  .track-labels span:nth-child(1) { color: var(--weak); }
+  .track-labels span:nth-child(3) { color: var(--strong); }
+
+  footer {
+    margin-top: 16px;
+    font-family: var(--mono-font);
+    font-size: 16px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+
+  /* --- Two-column layout --- */
+  .layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    position: relative;
+    z-index: 1;
+  }
+
+  .driver-col {
+    flex: 0 0 32%;
+    min-width: 0;
+    position: relative;
+  }
+
+  .brain-col {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  @media (max-width: 480px) {
+    .layout {
+      flex-direction: column;
+    }
+    .driver-col {
+      flex-basis: auto;
+      width: 100%;
+    }
+    .panel {
+      padding: 22px 16px 20px;
+    }
+  }
+
+  svg#driverView {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 14px;
+    border: 1px solid var(--panel-line);
+    overflow: hidden;
+    background: #0c1420;
+  }
+
+  .hud {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 2;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(6, 10, 18, 0.65);
+    backdrop-filter: blur(2px);
+  }
+
+  .hint {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    max-width: 78%;
+    text-align: center;
+    font-family: var(--mono-font);
+    font-size: 15.34px;
+    line-height: 1.5;
+    color: var(--text);
+    background: rgba(6, 10, 18, 0.72);
+    border: 1px solid var(--panel-line);
+    padding: 12px 14px;
+    border-radius: 10px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  .hint.visible {
+    opacity: 1;
+  }
+
+  .speed-readout {
+    font-family: var(--mono-font);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    transition: color 0.2s ease;
+  }
+
+  .road-name {
+    margin-left: 8px;
+    font-family: var(--mono-font);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* --- Figure comparison --- */
+  .figure-block {
+    margin-top: 20px;
+    margin-bottom: 32px;
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    border: 1px solid var(--panel-line);
+    overflow: hidden;
+    background: #0c1420;
+  }
+
+  .figure-layer {
+    position: absolute;
+    inset: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .figure-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .figure-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="panel">
+    <div class="figure-block">
+      <div id="dysregulated" class="figure-layer">
+        <img id="dysShake" class="figure-img" alt="Dysregulated teens: anger, distress, overwhelm" src="https://illinois.qualtrics.com/ControlPanel/File.php?F=F_Bv2shDxHwHpyHrR">
+      </div>
+      <div id="regulated" class="figure-layer">
+        <img id="regBreathe" class="figure-img" alt="Regulated teens: calm, resting, mindful" src="https://illinois.qualtrics.com/ControlPanel/File.php?F=F_VOXVg3BOQ0lL4Xw">
+        <div class="calm-glow"></div>
+        <div class="calm-particle" style="left:18%; bottom:8%; animation-delay:0s;"></div>
+        <div class="calm-particle" style="left:38%; bottom:4%; animation-delay:1.4s;"></div>
+        <div class="calm-particle" style="left:58%; bottom:12%; animation-delay:2.8s;"></div>
+        <div class="calm-particle" style="left:76%; bottom:6%; animation-delay:0.7s;"></div>
+        <div class="calm-particle" style="left:28%; bottom:18%; animation-delay:3.6s;"></div>
+        <div class="calm-particle" style="left:84%; bottom:20%; animation-delay:2.1s;"></div>
+      </div>
+      <p class="hint" id="hint">Drag the bar to either side and see how the driver view changes</p>
+    </div>
+
+    <div class="layout">
+
+      <div class="driver-col">
+        <div class="hud">
+          <span class="speed-readout" id="speedReadout">32</span>
+          <span class="road-name">Emotion Road</span>
+        </div>
+        <svg id="driverView" viewBox="0 0 300 340" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0c1420"/>
+              <stop offset="100%" stop-color="#141f33"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="300" height="340" fill="url(#skyGrad)"/>
+          <line id="horizonGlow" x1="20" y1="120" x2="280" y2="120" stroke="var(--muted)" stroke-width="2" opacity="0.5"/>
+
+          <g id="roadMotion">
+            <polygon points="10,340 290,340 168,120 132,120" fill="#141c2c" stroke="var(--panel-line)" stroke-width="2"/>
+            <g id="dashGroup"></g>
+          </g>
+
+          <g id="edgeStreaks"></g>
+
+          <rect id="tint" x="0" y="0" width="300" height="340" fill="var(--weak)" opacity="0"/>
+
+          <g id="wheel" transform="translate(150,372)">
+            <circle r="58" fill="none" stroke="var(--panel-line)" stroke-width="8"/>
+            <circle r="10" fill="#0c1420" stroke="var(--panel-line)" stroke-width="3"/>
+            <line x1="0" y1="-50" x2="0" y2="-14" stroke="var(--panel-line)" stroke-width="6" stroke-linecap="round"/>
+            <line x1="-43" y1="25" x2="-14" y2="7" stroke="var(--panel-line)" stroke-width="6" stroke-linecap="round"/>
+            <line x1="43" y1="25" x2="14" y2="7" stroke="var(--panel-line)" stroke-width="6" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="brain-col">
+        <svg id="diagram" viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg">
+      <!-- connecting pathway -->
+      <path id="pathway" d="M 585 70 C 420 40, 280 60, 178 128" fill="none" stroke-linecap="round"/>
+      <g id="pulses"></g>
+
+      <!-- PFC node -->
+      <g id="pfc-node">
+        <rect x="440" y="20" width="380" height="160" rx="44" fill="#0c1420" stroke-width="2.5"/>
+        <text x="630" y="95" text-anchor="middle" class="region-label">
+          <tspan x="630" dy="0">Prefrontal</tspan>
+          <tspan x="630" dy="50">Cortex</tspan>
+        </text>
+      </g>
+
+      <!-- Amygdala node -->
+      <g id="amyg-node">
+        <ellipse cx="140" cy="150" rx="128" ry="66" fill="#0c1420" stroke-width="1.5"/>
+        <text x="140" y="157" text-anchor="middle" class="region-label">Amygdala</text>
+      </g>
+
+      <!-- connector stems down to the pedal dashboard -->
+      <line x1="140" y1="216" x2="140" y2="226" stroke="var(--panel-line)" stroke-width="1.5" stroke-dasharray="3 4"/>
+      <line x1="630" y1="180" x2="630" y2="226" stroke="var(--panel-line)" stroke-width="1.5" stroke-dasharray="3 4"/>
+
+      <!-- Pedal dashboard -->
+      <g id="pedal-dash">
+        <line x1="60" y1="300" x2="860" y2="300" class="pedal-floor"/>
+
+        <!-- Gas pedal (amygdala) — narrow oval accelerator -->
+        <g id="gasPedal">
+          <text x="140" y="340" text-anchor="middle" class="pedal-label" fill="var(--weak)">Gas pedal</text>
+          <g id="gasPivot" transform="translate(140,300)">
+            <line x1="0" y1="0" x2="0" y2="-34" stroke="var(--weak)" stroke-width="2.5" stroke-linecap="round"/>
+            <ellipse class="pedal-pad" cx="0" cy="-40" rx="9" ry="15" fill="#0c1420" stroke="var(--weak)"/>
+          </g>
+        </g>
+
+        <!-- Brake pedal (PFC) — wide treaded pad -->
+        <g id="brakePedal">
+          <text x="630" y="340" text-anchor="middle" class="pedal-label" fill="var(--strong)">Brake</text>
+          <g id="brakePivot" transform="translate(630,300)">
+            <line x1="0" y1="0" x2="0" y2="-32" stroke="var(--strong)" stroke-width="4" stroke-linecap="round"/>
+            <rect class="pedal-pad" x="-22" y="-46" width="44" height="16" rx="4" fill="#0c1420" stroke="var(--strong)"/>
+            <line x1="-11" y1="-42" x2="-11" y2="-34" stroke="var(--strong)" stroke-width="1.5" opacity="0.6"/>
+            <line x1="0" y1="-42" x2="0" y2="-34" stroke="var(--strong)" stroke-width="1.5" opacity="0.6"/>
+            <line x1="11" y1="-42" x2="11" y2="-34" stroke="var(--strong)" stroke-width="1.5" opacity="0.6"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+
+    <div class="control">
+      <div class="track-labels">
+        <span>Weak</span><span>Baseline</span><span>Strong</span>
+      </div>
+      <div class="track-wrap" id="trackWrap">
+        <div class="track"></div>
+        <div class="track-fill-mark" style="left:50%"></div>
+        <div class="handle" id="handle" role="slider" aria-label="Amygdala-PFC connection strength"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"></div>
+      </div>
+    </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const wrap = document.getElementById('trackWrap');
+  const handle = document.getElementById('handle');
+  const pathway = document.getElementById('pathway');
+  const pulseGroup = document.getElementById('pulses');
+  const pfcRect = document.querySelector('#pfc-node rect');
+  const amygEllipse = document.querySelector('#amyg-node ellipse');
+  const gasPivot = document.getElementById('gasPivot');
+  const brakePivot = document.getElementById('brakePivot');
+  const roadMotion = document.getElementById('roadMotion');
+  const dashGroup = document.getElementById('dashGroup');
+  const edgeStreaks = document.getElementById('edgeStreaks');
+  const tint = document.getElementById('tint');
+  const wheel = document.getElementById('wheel');
+  const horizonGlow = document.getElementById('horizonGlow');
+  const speedReadout = document.getElementById('speedReadout');
+  const dysregulated = document.getElementById('dysregulated');
+  const regulated = document.getElementById('regulated');
+  const dysShake = document.getElementById('dysShake');
+  const regBreathe = document.getElementById('regBreathe');
+  const hint = document.getElementById('hint');
+
+  const WEAK = [226, 84, 45];    // #E2542D
+  const BASE = [201, 154, 62];   // #C99A3E
+  const STRONG = [53, 168, 147]; // #35A893
+
+  let value = 50; // 0-100
+  let dragging = false;
+  let pulseTimer = null;
+  let pulseId = 0;
+  let velocity = 45;   // simulated "speed" of the moment
+  let lastTick = performance.now();
+
+  // Perspective road: vanishing point (150,120), viewer edge at y=340.
+  const VP_X = 150, VP_Y = 120, NEAR_Y = 340;
+  const DASH_COUNT = 6;
+  const dashState = [];
+  for (let i = 0; i < DASH_COUNT; i++) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    el.setAttribute('rx', 1.5);
+    dashGroup.appendChild(el);
+    dashState.push({ z: 1 - i / DASH_COUNT, el });
+  }
+
+  // Edge speed streaks, radiating out from the vanishing point.
+  const streakAngles = [-62, -34, -12, 12, 34, 62];
+  const streakEls = streakAngles.map(a => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('stroke', 'var(--muted)');
+    l.setAttribute('stroke-width', 2);
+    l.setAttribute('stroke-linecap', 'round');
+    l.setAttribute('opacity', 0);
+    edgeStreaks.appendChild(l);
+    return { angle: a, el: l };
+  });
+
+  function lerp(a, b, t){ return a + (b - a) * t; }
+  function mixColor(t){
+    // t: 0 = weak, 0.5 = base, 1 = strong
+    let c1, c2, localT;
+    if (t <= 0.5) { c1 = WEAK; c2 = BASE; localT = t / 0.5; }
+    else { c1 = BASE; c2 = STRONG; localT = (t - 0.5) / 0.5; }
+    const r = Math.round(lerp(c1[0], c2[0], localT));
+    const g = Math.round(lerp(c1[1], c2[1], localT));
+    const b = Math.round(lerp(c1[2], c2[2], localT));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function spawnPulse(speed){
+    const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('class', 'pulse-dot');
+    pulseGroup.appendChild(dot);
+
+    const len = pathway.getTotalLength();
+    const start = performance.now();
+    function animate(now){
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / speed, 1);
+      const pt = pathway.getPointAtLength(len * progress); // PFC -> amygdala
+      dot.setAttribute('cx', pt.x);
+      dot.setAttribute('cy', pt.y);
+
+      // Read the live connection strength every frame, so an in-flight
+      // pulse brightens/dims and grows/shrinks as the slider moves.
+      const liveT = value / 100;
+      const liveColor = mixColor(liveT);
+      dot.setAttribute('fill', liveColor);
+      dot.style.color = liveColor;
+      dot.setAttribute('r', lerp(2.8, 6, liveT));
+
+      const fade = progress < 0.08 ? progress / 0.08 : (progress > 0.9 ? (1 - progress) / 0.1 : 1);
+      dot.setAttribute('opacity', fade * lerp(0.5, 1, liveT));
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        dot.remove();
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  function scheduleNextPulse(){
+    clearTimeout(pulseTimer);
+    const t = value / 100;
+    // weak = sparse, irregular, slow pulses. strong = frequent, steady, fast pulses.
+    const baseInterval = lerp(1600, 300, t);
+    const jitter = lerp(300, 40, t); // more irregular timing when weak
+    const interval = baseInterval + (Math.random() * 2 - 1) * jitter;
+    const speed = lerp(1500, 650, t); // travel duration ms — slower (higher ms) when weaker
+
+    spawnPulse(speed);
+    pulseTimer = setTimeout(() => scheduleNextPulse(), interval);
+  }
+
+  function render(){
+    const t = value / 100;
+    const color = mixColor(t);
+
+    handle.style.left = value + '%';
+    handle.style.color = color;
+    handle.setAttribute('aria-valuenow', Math.round(value));
+
+    const strokeWidth = lerp(2.5, 9, t);
+    pathway.setAttribute('stroke', color);
+    pathway.setAttribute('stroke-width', strokeWidth);
+    pathway.style.filter = t > 0.66
+      ? `drop-shadow(0 0 6px ${color})`
+      : (t < 0.34 ? `drop-shadow(0 0 3px ${color})` : 'none');
+    pathway.style.strokeDasharray = t < 0.34 ? '10 6' : 'none';
+
+    pfcRect.setAttribute('stroke', color);
+    amygEllipse.setAttribute('stroke', color);
+
+    // Brake pedal: unpressed at weak connection, fully floored at strong.
+    const brakeAngle = lerp(0, 64, t);
+    brakePivot.setAttribute('transform', `translate(630,300) rotate(${brakeAngle})`);
+
+    // Nudge people to interact while the handle sits at baseline.
+    hint.classList.toggle('visible', t > 0.34 && t < 0.67);
+  }
+
+  // Single animation loop: gas pedal jitter, brake-vs-gas velocity model,
+  // and the driver's-eye road (rushing dashes, swerve, wheel, tint, HUD)
+  // all update together from the same simulated speed.
+  function updateDash(state, t){
+    const ez = state.z * state.z; // accelerating perspective
+    const y = lerp(VP_Y, NEAR_Y, ez);
+    const halfW = lerp(2, 15, ez);
+    const len = lerp(6, 48, ez);
+    state.el.setAttribute('x', VP_X - halfW);
+    state.el.setAttribute('y', y - len);
+    state.el.setAttribute('width', halfW * 2);
+    state.el.setAttribute('height', len);
+    state.el.setAttribute('fill', mixColor(t));
+    state.el.setAttribute('opacity', lerp(0.3, 1, ez));
+  }
+
+  function updateStreaks(intensity){
+    streakEls.forEach(({ angle, el }) => {
+      const rad = angle * Math.PI / 180;
+      const dirX = Math.sin(rad), dirY = Math.cos(rad);
+      const startLen = 16;
+      const len = 14 + intensity * 150;
+      const sx = VP_X + dirX * startLen, sy = VP_Y + dirY * startLen;
+      const ex = VP_X + dirX * (startLen + len), ey = VP_Y + dirY * (startLen + len);
+      el.setAttribute('x1', sx); el.setAttribute('y1', sy);
+      el.setAttribute('x2', ex); el.setAttribute('y2', ey);
+      el.setAttribute('opacity', intensity > 0.04 ? lerp(0.05, 0.55, intensity) : 0);
+    });
+  }
+
+  function tick(now){
+    const dt = Math.min((now - lastTick) / 1000, 0.05);
+    lastTick = now;
+    const t = value / 100;
+    const color = mixColor(t);
+
+    // Gas pedal: always pressed, jittery when the brake is weak.
+    const jitterAmt = lerp(16, 0, t);
+    const wobble = Math.sin(now / 200) * jitterAmt;
+    gasPivot.setAttribute('transform', `translate(140,300) rotate(${52 + wobble})`);
+
+    // Velocity: each connection strength eases toward its own steady speed,
+    // dropping off steeply near "weak" so baseline settles well below it
+    // rather than both climbing toward the same ceiling over time.
+    const target = 25 + 115 * Math.pow(1 - t, 2.2);
+    velocity += (target - velocity) * Math.min(1, dt * 1.4);
+
+    // Advance dashes toward the viewer, speed-linked; recycle at the horizon.
+    dashState.forEach(state => {
+      state.z -= velocity * dt * 0.0075;
+      if (state.z <= 0) state.z += 1;
+      updateDash(state, t);
+    });
+
+    // Swerve: the whole road drifts under a shaky, unregulated moment.
+    const turbulence = lerp(11, 0, t) + Math.max(0, (velocity - 95) / 90) * 8;
+    const swerveX = Math.sin(now / 150) * turbulence + Math.sin(now / 66) * turbulence * 0.3;
+    roadMotion.setAttribute('transform', `translate(${swerveX},0)`);
+    wheel.setAttribute('transform', `translate(150,372) rotate(${swerveX * 0.9})`);
+    horizonGlow.setAttribute('stroke', color);
+    horizonGlow.style.filter = `drop-shadow(0 0 ${lerp(2, 8, t)}px ${color})`;
+
+    const intensity = Math.max(0, Math.min(1, (velocity - 55) / 85));
+    updateStreaks(intensity);
+    tint.setAttribute('fill', color);
+    tint.setAttribute('opacity', lerp(0.02, 0.22, intensity));
+
+    const speedVal = Math.round(velocity);
+    speedReadout.textContent = speedVal;
+    speedReadout.style.color = color;
+
+    // Posture cross-fade: dysregulated dominates at weak, regulated at strong.
+    // Both fade out near baseline so the hint reads clean, not over a blended figure.
+    const smooth = t * t * (3 - 2 * t);
+    const distFromCenter = Math.abs(t - 0.5);
+    const figureVisibility = Math.max(0, Math.min(1, (distFromCenter - 0.3) / 0.2));
+    dysregulated.style.opacity = (1 - smooth) * figureVisibility;
+    regulated.style.opacity = smooth * figureVisibility;
+
+    const shakeAmt = lerp(3.5, 0, t);
+    const shakeX = Math.sin(now / 60) * shakeAmt + Math.sin(now / 27) * shakeAmt * 0.4;
+    dysShake.style.transform = `translate(${shakeX}px, 0)`;
+
+    const breatheY = Math.sin(now / 900) * 1.6;
+    regBreathe.style.transform = `translate(0, ${breatheY}px)`;
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  function setValue(v, restart){
+    value = Math.max(0, Math.min(100, v));
+    render();
+    if (restart) scheduleNextPulse();
+  }
+
+  function posToValue(clientX){
+    const rect = wrap.getBoundingClientRect();
+    const t = (clientX - rect.left) / rect.width;
+    return t * 100;
+  }
+
+  function onDown(e){
+    dragging = true;
+    handle.style.transition = 'none';
+    onMove(e);
+  }
+  function onMove(e){
+    if (!dragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    setValue(posToValue(clientX), false);
+  }
+  function onUp(){
+    if (!dragging) return;
+    dragging = false;
+    handle.style.transition = '';
+    scheduleNextPulse();
+  }
+
+  handle.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  handle.addEventListener('touchstart', onDown, {passive:true});
+  window.addEventListener('touchmove', onMove, {passive:true});
+  window.addEventListener('touchend', onUp);
+
+  wrap.addEventListener('mousedown', function(e){
+    if (e.target === handle) return;
+    setValue(posToValue(e.clientX), true);
+  });
+
+  handle.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowLeft') { setValue(value - 5, true); }
+    if (e.key === 'ArrowRight') { setValue(value + 5, true); }
+  });
+
+  setValue(50, true);
+})();
+</script>
+
+</body>
+</html>
